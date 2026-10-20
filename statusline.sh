@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Claude Code status line: two lines, truecolor context bar, no emoji.
 #
-#   Line 1  Identity: model ◆ effort · vX.Y.Z (+ restart notice) │ repo/path [branch +staged ~unstaged ?untracked ↑↓] │ #PR state │ wt: name │ session │ agent: name
-#   Line 2  Meters:   context bar pct · tokens in · tokens out · $cost · duration · +added -removed · 5h % · 7d % · cache cold
+#   Line 1  Identity: model (effort, fast, no-think) · vX.Y.Z (+ restart notice) │ repo/path [branch +staged ~unstaged ?untracked ↑↓] │ #PR state │ wt: name │ session │ agent: name
+#   Line 2  Meters:   context bar pct · tokens in/window · session tokens out · $cost · duration · +added -removed · 5h % · 7d % · cache cold
 #
 # Reads the status line JSON from stdin (see https://code.claude.com/docs/en/statusline).
 # Targets bash 3.2 (macOS default) and needs only jq and git.
@@ -48,6 +48,7 @@ SEP2=" ${DIM}·${RESET} "
   IFS= read -r -d '' pr_state
   IFS= read -r -d '' used
   IFS= read -r -d '' tokens_in
+  IFS= read -r -d '' window
   IFS= read -r -d '' tokens_out
   IFS= read -r -d '' cost
   IFS= read -r -d '' duration_ms
@@ -57,6 +58,7 @@ SEP2=" ${DIM}·${RESET} "
   IFS= read -r -d '' limit_7d
   IFS= read -r -d '' cache_warm
   IFS= read -r -d '' version
+  IFS= read -r -d '' transcript
 } < <(printf '%s' "$input" | jq -j '[
   .model.display_name // "Claude",
   .effort.level // "",
@@ -71,6 +73,7 @@ SEP2=" ${DIM}·${RESET} "
   .pr.review_state // "",
   .context_window.used_percentage // "",
   .context_window.total_input_tokens // 0,
+  .context_window.context_window_size // 0,
   .context_window.total_output_tokens // 0,
   .cost.total_cost_usd // 0,
   .cost.total_duration_ms // 0,
@@ -79,7 +82,8 @@ SEP2=" ${DIM}·${RESET} "
   .rate_limits.five_hour.used_percentage // "",
   .rate_limits.seven_day.used_percentage // "",
   (.prompt_cache.warm | if . == null then "" else . end),
-  .version // ""
+  .version // "",
+  .transcript_path // ""
 ] | map(tostring) | join("\u0000") + "\u0000"')
 
 # ── Sanitize external strings: strip control characters in place ─────────────
@@ -113,10 +117,15 @@ if [ -n "$effort" ]; then
     max)    effort_color="$RED" ;;
     *)      effort_color="" ;;
   esac
-  model_part="${model_part} ${DIM}◆${RESET} ${effort_color}${effort}${RESET}"
 fi
-[ "$fast_mode" = "true" ]  && model_part="${model_part} ${YELLOW}fast${RESET}"
-[ "$thinking" = "false" ]  && model_part="${model_part} ${DIM}no-think${RESET}"
+# Effort and the fast / no-think flags read as qualifiers of the model, so they
+# share one set of parentheses: "Opus (high)", "Opus (high, fast, no-think)".
+# The parentheses take the effort's color so "(high)" reads as one unit.
+quals=""
+[ -n "$effort" ]           && quals="${effort}"
+[ "$fast_mode" = "true" ]  && quals="${quals:+${quals}, }${YELLOW}fast${effort_color:-$RESET}"
+[ "$thinking" = "false" ]  && quals="${quals:+${quals}, }${DIM}no-think${RESET}${effort_color}"
+[ -n "$quals" ]            && model_part="${model_part} ${effort_color}(${quals})${RESET}"
 
 # ── Directory + git ──────────────────────────────────────────────────────────
 # One `git status --porcelain=v2 --branch` call yields branch, ahead/behind and
@@ -218,18 +227,45 @@ else
   ctx_part="${GREY}░░░░░░░░░░░░░░░░░░░░${RESET} ${DIM}--%${RESET}"
 fi
 
+# ── Session output tokens from the transcript ────────────────────────────────
+# The payload's total_output_tokens is the last response only. The transcript
+# has every response, so sum it. Each assistant message is written as several
+# entries (one per content block) that repeat the same usage, so take one value
+# per message id. Subagent transcripts sit in <session>/subagents/ and count too,
+# matching what total_cost_usd already includes. Skipped past 50MB to keep the
+# render fast; then the last-response figure from the payload is shown instead.
+if [ -n "$transcript" ] && [ -r "$transcript" ]; then
+  files=("$transcript")
+  for f in "${transcript%.jsonl}"/subagents/*.jsonl; do [ -r "$f" ] && files+=("$f"); done
+  size=$(wc -c < "$transcript")
+  if [ "${size:-0}" -le 52428800 ]; then
+    total=$(jq -n 'reduce inputs as $e ({};
+        if $e.type == "assistant" and ($e.message.id | type) == "string"
+        then .[$e.message.id] = ([.[$e.message.id] // 0, ($e.message.usage.output_tokens // 0)] | max)
+        else . end) | add // 0' "${files[@]}" 2>/dev/null)
+    case "$total" in ''|*[!0-9]*) ;; *) tokens_out=$total ;; esac
+  fi
+fi
+
 # ── Tokens: 850 → "850", 62400 → "62k", 1250000 → "1.2M" ─────────────────────
-# Input is everything currently in the context window. Output is the last
-# response only, which is all Claude Code exposes.
+# Input is everything currently in the context window. Output is the session
+# total from the transcript when available, else the last response.
 fmt_tokens() {
   local n=${2%%.*}
-  if   [ "$n" -ge 1000000 ]; then printf -v "$1" '%d.%dM' $(( n / 1000000 )) $(( n % 1000000 / 100000 ))
+  if   [ "$n" -ge 1000000 ]; then
+    tenths=$(( n % 1000000 / 100000 ))   # one decimal, dropped when it is zero: 1M, 1.2M
+    if [ "$tenths" -eq 0 ]; then printf -v "$1" '%dM' $(( n / 1000000 ))
+    else                         printf -v "$1" '%d.%dM' $(( n / 1000000 )) "$tenths"; fi
   elif [ "$n" -ge 1000 ];    then printf -v "$1" '%dk' $(( n / 1000 ))
   else                            printf -v "$1" '%d' "$n"; fi
 }
 fmt_tokens tokens_in_fmt "$tokens_in"
 fmt_tokens tokens_out_fmt "$tokens_out"
-tokens_part="${tokens_in_fmt} ${DIM}in${RESET}${SEP2}${tokens_out_fmt} ${DIM}out${RESET}"
+# Window size after the input count, so the percentage is self-explanatory:
+# 141k reads very differently on a 200k window than on a 1M one.
+tokens_part="${tokens_in_fmt}"
+[ "${window%%.*}" -gt 0 ] 2>/dev/null && { fmt_tokens window_fmt "$window"; tokens_part="${tokens_part}${DIM}/${window_fmt}${RESET}"; }
+tokens_part="${tokens_part} ${DIM}in${RESET}${SEP2}${tokens_out_fmt} ${DIM}out${RESET}"
 
 # ── Cost, duration, lines changed ────────────────────────────────────────────
 cost_part="${YELLOW}$(printf '$%.2f' "$cost")${RESET}"

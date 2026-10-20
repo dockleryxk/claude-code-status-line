@@ -3,8 +3,8 @@
 A two-line [Claude Code status line](https://code.claude.com/docs/en/statusline) in plain bash. No emoji, no plugin dependencies, nothing that shells out beyond `jq` and `git`.
 
 ```
-Opus ◆ high · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending │ wt: my-feature
-████████░░░░░░░░░░░░ 31% · 62k in · 4k out · $1.84 · 1h12m · +156 -23 · 5h 23% · 7d 41%
+Opus (high) · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending │ wt: my-feature
+████████░░░░░░░░░░░░ 31% · 62k/200k in · 4k out · $1.84 · 1h12m · +156 -23 · 5h 23% · 7d 41%
 ```
 
 ## What it shows
@@ -14,8 +14,8 @@ Opus ◆ high · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending 
 | Segment | Source | Notes |
 | - | - | - |
 | Model | `model.display_name` | Bold magenta |
-| Effort | `effort.level` | After the `◆`. Dim for low, yellow high, orange xhigh, red max. Hidden when the model has no effort setting |
-| `fast` / `no-think` | `fast_mode`, `thinking.enabled` | Only shown when fast mode is on or thinking is off |
+| Effort | `effort.level` | In parentheses after the model. Dim for low, yellow high, orange xhigh, red max. Hidden when the model has no effort setting |
+| `fast` / `no-think` | `fast_mode`, `thinking.enabled` | Join the effort inside the parentheses, only when fast mode is on or thinking is off |
 | Version | `version` + the `claude` launcher symlink | Running version, dim. Turns yellow with `↑ vNEW restart` when the native auto-updater has installed a newer build than this session is running |
 | Directory | `workspace.current_dir` | Inside a repo: repo name plus the path below the root. Outside a repo: home-relative path |
 | Branch | `git status --porcelain=v2 --branch` | In brackets: the branch name, then `+staged` `~unstaged` `?untracked` `↑ahead` `↓behind`, or `✓` when clean. Untracked counts files, including inside new directories |
@@ -27,7 +27,7 @@ Opus ◆ high · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending 
 | Segment | Source | Notes |
 | - | - | - |
 | Context bar | `context_window.used_percentage` | 20 blocks, truecolor gradient green → yellow → red. Percentage turns yellow at 50, orange at 75, red at 90 |
-| Tokens | `context_window.total_input_tokens`, `total_output_tokens` | Input is everything currently in the context window. Output is the most recent response only, which is all Claude Code exposes. Shown as `850`, `62k`, or `1.2M` |
+| Tokens | `context_window.total_input_tokens`, `context_window_size`; the session transcript | Input is everything currently in the context window, over the window size. Output is the session total, summed from the transcript at `transcript_path` plus any subagent transcripts, deduplicated per message. Falls back to the payload's last-response figure if the transcript is unreadable or over 50MB. Shown as `850`, `62k`, or `1.2M` |
 | Cost | `cost.total_cost_usd` | Claude Code's own estimate. Resets on `/clear` |
 | Duration | `cost.total_duration_ms` | Wall-clock session time |
 | Lines changed | `cost.total_lines_added`, `total_lines_removed` | |
@@ -79,6 +79,7 @@ Renders both samples, builds a throwaway git repo to check the branch markers an
 - **No subshells in the hot path.** Colors are written into variables with `printf -v`.
 - **Colors are ANSI-C quoted** (`$'\033[…'`), so the output is printed with `%s` and no external string is ever interpreted as an escape sequence. Branch, directory, session, agent and PR values are additionally stripped of control characters.
 - **Update check without network.** The native installer repoints the `claude` symlink when it installs a new version, so one `readlink` compared with the payload's `version` says whether a restart would pick up a newer build. Non-native installs (Homebrew, npm) show the running version only.
+- **Session output tokens come from the transcript.** Claude Code only exposes the last response's output count, so the script sums `message.usage.output_tokens` across the transcript instead. Each assistant message appears once per content block with identical usage, so the sum keeps one value per message id. Measured at about 20ms for a 2MB transcript and 135ms for 15MB.
 - **One `git status` call** supplies branch, ahead/behind, and all file states. `git rev-parse --show-prefix` gives the path below the repo root and survives symlinked paths such as macOS `/var` → `/private/var`.
 
 The gradient bar and the overall structure come from [AKCodez's status line gist](https://gist.github.com/AKCodez/ffb420ba6a7662b5c3dda2edce7783de) and the performance and sanitizing improvements proposed in its comments.

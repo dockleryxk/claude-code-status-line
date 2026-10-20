@@ -35,14 +35,14 @@ reject() {
 
 # ── Full payload: every optional segment present ─────────────────────────────
 out=$(render samples/full.json)
-expect full-model     "$out" "Opus ◆ high fast no-think"
+expect full-model     "$out" "Opus (high, fast, no-think)"
 expect full-dir       "$out" "~/projects/example-app"
 expect full-pr        "$out" "#42 changes requested"
 expect full-worktree  "$out" "wt: my-feature"
 expect full-session   "$out" "refactor auth"
 expect full-agent     "$out" "agent: reviewer"
 expect full-bar       "$out" "██████░░░░░░░░░░░░░░ 31%"
-expect full-tokens    "$out" "62k in · 4k out"
+expect full-tokens    "$out" "62k/200k in · 4k out"
 expect full-cost      "$out" '$1.84'
 expect full-duration  "$out" "1h12m"
 expect full-lines     "$out" "+156 -23"
@@ -52,7 +52,7 @@ expect full-version   "$out" "· v2.1.90 │"
 reject full-restart   "$out" "restart"
 expect full-two-lines "$(printf '%s' "$out" | wc -l | tr -d ' ')" "1"
 l1=$(printf '%s\n' "$out" | sed -n 1p); l2=$(printf '%s\n' "$out" | sed -n 2p)
-expect l1-model    "$l1" "Opus ◆ high"
+expect l1-model    "$l1" "Opus (high"
 expect l1-version  "$l1" "v2.1.90 │"
 expect l1-dir      "$l1" "~/projects/example-app"
 expect l1-pr       "$l1" "#42 changes requested"
@@ -69,9 +69,9 @@ reject l2-dir      "$l2" "example-app"
 # ── Minimal payload: first render of a session, before any API call ──────────
 out=$(render samples/minimal.json)
 expect min-model   "$out" "Sonnet"
-reject min-effort  "$out" "◆"
+reject min-effort  "$out" "("
 expect min-bar     "$out" "░░░░░░░░░░░░░░░░░░░░ --%"
-expect min-tokens  "$out" "0 in · 0 out"
+expect min-tokens  "$out" "0/200k in · 0 out"
 expect min-cost    "$out" '$0.00'
 expect min-dur     "$out" "0m"
 reject min-limits  "$out" "5h"
@@ -126,6 +126,31 @@ rm -f "$fake/bin/claude"; ln -s "$fake/versions/Cellar/claude-code/bin/claude" "
 out=$(render samples/minimal.json)
 reject ver-nonnative "$out" "restart"
 set_launcher 2.1.90
+
+# ── Output tokens: deduplicated session total across main + subagent transcripts
+tr=$(mktemp -d)
+cat > "$tr/session.jsonl" <<'JSONL'
+{"type":"user","message":{"role":"user","content":"hi"}}
+{"type":"assistant","message":{"id":"msg_a","usage":{"output_tokens":100}}}
+{"type":"assistant","message":{"id":"msg_a","usage":{"output_tokens":100}}}
+{"type":"assistant","message":{"id":"msg_a","usage":{"output_tokens":100}}}
+{"type":"assistant","message":{"id":"msg_b","usage":{"output_tokens":50}}}
+{"type":"assistant","message":{"id":"msg_b","usage":{"output_tokens":250}}}
+{"type":"system","subtype":"noise"}
+JSONL
+mkdir -p "$tr/session/subagents"
+printf '%s\n' '{"type":"assistant","message":{"id":"msg_sub","usage":{"output_tokens":1700}}}' > "$tr/session/subagents/agent-1.jsonl"
+payload3=$(mktemp)
+jq --arg p "$tr/session.jsonl" '.transcript_path = $p | .context_window.total_output_tokens = 7' samples/minimal.json > "$payload3"
+out=$(render "$payload3")
+expect out-dedup-sum "$out" "2k out"          # 100 + 250 + 1700 = 2050, not the naive 2300
+jq --arg p "$tr/missing.jsonl" '.transcript_path = $p | .context_window.total_output_tokens = 7' samples/minimal.json > "$payload3"
+out=$(render "$payload3")
+expect out-fallback "$out" "7 out"            # no transcript: payload's last-response figure
+jq '.context_window.context_window_size = 1000000 | .context_window.total_input_tokens = 1250000' samples/minimal.json > "$payload3"
+out=$(render "$payload3")
+expect fmt-million "$out" "1.2M/1M in"        # round millions drop the .0
+rm -rf "$tr" "$payload3"
 
 rm -rf "$tmp" "$payload" "$fake"
 

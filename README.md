@@ -2,10 +2,14 @@
 
 A two-line [Claude Code status line](https://code.claude.com/docs/en/statusline) in plain bash. No emoji, no plugin dependencies, nothing that shells out beyond `jq` and `git`.
 
+![The status line as it renders in a terminal](docs/statusline.svg)
+
 ```
 Opus (high) · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending │ wt: my-feature
 ████████░░░░░░░░░░░░ 31% · 62k/200k in · 4k out · $1.84 · 1h12m · +156 -23 · 5h 23% · 7d 41%
 ```
+
+The image is the script's own output, captured by `docs/render.sh` with [freeze](https://github.com/charmbracelet/freeze). Colors are freeze's palette, so your terminal theme will shift them slightly.
 
 ## What it shows
 

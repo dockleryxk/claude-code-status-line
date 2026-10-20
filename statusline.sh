@@ -19,7 +19,6 @@ RED=$'\033[31m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 BLUE=$'\033[34m'
-MAGENTA=$'\033[35m'
 CYAN=$'\033[36m'
 ORANGE=$'\033[38;2;255;140;0m'
 GREY=$'\033[38;2;60;60;60m'
@@ -107,12 +106,13 @@ threshold_color() {
 }
 
 # ── Model + effort ───────────────────────────────────────────────────────────
-model_part="${BOLD}${MAGENTA}${model}${RESET}"
+model_part="${BOLD}${BLUE}${model}${RESET}"
 if [ -n "$effort" ]; then
   case "$effort" in
+    # Plain for the everyday levels; color only when effort is unusual.
     low)    effort_color="$DIM" ;;
     medium) effort_color="" ;;
-    high)   effort_color="$YELLOW" ;;
+    high)   effort_color="" ;;
     xhigh)  effort_color="$ORANGE" ;;
     max)    effort_color="$RED" ;;
     *)      effort_color="" ;;
@@ -143,7 +143,8 @@ if [ -n "$cwd" ]; then
     rel=${prefix%/}
     sanitize repo
     sanitize rel
-    dir_part="${BOLD}${YELLOW}${repo}${RESET}"
+    # Bold, default foreground: yellow is reserved for warnings and levels.
+    dir_part="${BOLD}${repo}${RESET}"
     [ -n "$rel" ] && dir_part="${dir_part}${DIM}/${rel}${RESET}"
 
     branch=""; ahead=0; behind=0; staged=0; unstaged=0; untracked=0
@@ -181,7 +182,7 @@ if [ -n "$cwd" ]; then
     shown=$cwd
     [ -n "$HOME" ] && shown=${cwd/#"$HOME"/\~}
     sanitize shown
-    dir_part="${BOLD}${YELLOW}${shown}${RESET}"
+    dir_part="${BOLD}${shown}${RESET}"
   fi
 fi
 
@@ -268,7 +269,7 @@ tokens_part="${tokens_in_fmt}"
 tokens_part="${tokens_part} ${DIM}in${RESET}${SEP2}${tokens_out_fmt} ${DIM}out${RESET}"
 
 # ── Cost, duration, lines changed ────────────────────────────────────────────
-cost_part="${YELLOW}$(printf '$%.2f' "$cost")${RESET}"
+cost_part=$(printf '$%.2f' "$cost")   # plain, like the token counts beside it
 
 mins=$(( ${duration_ms%%.*} / 60000 ))
 if [ "$mins" -ge 60 ]; then duration_part="$(( mins / 60 ))h$(( mins % 60 ))m"

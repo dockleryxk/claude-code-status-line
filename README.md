@@ -13,11 +13,11 @@ Opus (high) · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending �
 
 | Segment | Source | Notes |
 | - | - | - |
-| Model | `model.display_name` | Bold magenta |
-| Effort | `effort.level` | In parentheses after the model. Dim for low, yellow high, orange xhigh, red max. Hidden when the model has no effort setting |
+| Model | `model.display_name` | Bold blue |
+| Effort | `effort.level` | In parentheses after the model. Plain for medium and high, dim for low, orange for xhigh, red for max. Hidden when the model has no effort setting |
 | `fast` / `no-think` | `fast_mode`, `thinking.enabled` | Join the effort inside the parentheses, only when fast mode is on or thinking is off |
 | Version | `version` + the `claude` launcher symlink | Running version, dim. Turns yellow with `↑ vNEW restart` when the native auto-updater has installed a newer build than this session is running |
-| Directory | `workspace.current_dir` | Inside a repo: repo name plus the path below the root. Outside a repo: home-relative path |
+| Directory | `workspace.current_dir` | Bold. Inside a repo: repo name plus the path below the root. Outside a repo: home-relative path |
 | Branch | `git status --porcelain=v2 --branch` | In brackets: the branch name, then `+staged` `~unstaged` `?untracked` `↑ahead` `↓behind`, or `✓` when clean. Untracked counts files, including inside new directories |
 | Pull request | `pr.*` | Clickable number (OSC 8), colored by review state. Hidden when there is no PR |
 | Worktree, session name, agent | `worktree.name`, `session_name`, `agent.name` | Each shown only when set |
@@ -33,6 +33,8 @@ Opus (high) · v2.1.304 │ example-app/src [main +2 ~1 ↑1] │ #42 pending �
 | Lines changed | `cost.total_lines_added`, `total_lines_removed` | |
 | Rate limits | `rate_limits.five_hour`, `seven_day` | Pro and Max plans only; hidden when absent. Same color thresholds as context |
 | `cache cold` | `prompt_cache.warm` | Appears only when the prompt cache has expired, since the next turn will cost more |
+
+Color rule: yellow, orange and red mean "heads up" and nothing else. They mark effort level, context and rate limit thresholds, unstaged and untracked files, and a pending restart. Identity and plain numbers stay in the default foreground.
 
 The permission mode (default, plan, auto, accept edits) is not shown because Claude Code does not pass it to the status line. It stays visible in Claude Code's own footer, directly under this one.
 

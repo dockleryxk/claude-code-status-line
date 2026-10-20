@@ -1,0 +1,47 @@
+{
+  "cwd": "/home/user/projects/example-app",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "session_name": "refactor auth",
+  "transcript_path": "/home/user/.claude/projects/example/transcript.jsonl",
+  "model": { "id": "claude-opus-5-5", "display_name": "Opus" },
+  "workspace": {
+    "current_dir": "/home/user/projects/example-app",
+    "project_dir": "/home/user/projects/example-app",
+    "added_dirs": [],
+    "repo": { "host": "github.com", "owner": "example", "name": "example-app" }
+  },
+  "version": "2.1.90",
+  "output_style": { "name": "default" },
+  "cost": {
+    "total_cost_usd": 1.84,
+    "total_duration_ms": 4320000,
+    "total_api_duration_ms": 900000,
+    "total_lines_added": 156,
+    "total_lines_removed": 23
+  },
+  "context_window": {
+    "total_input_tokens": 62400,
+    "total_output_tokens": 4100,
+    "context_window_size": 200000,
+    "used_percentage": 31.2,
+    "remaining_percentage": 68.8,
+    "current_usage": {
+      "input_tokens": 8500,
+      "output_tokens": 4100,
+      "cache_creation_input_tokens": 5000,
+      "cache_read_input_tokens": 48900
+    }
+  },
+  "exceeds_200k_tokens": false,
+  "prompt_cache": { "warm": false, "caching_observed": true, "ttl": "1h", "hit_ratio": 0.91 },
+  "fast_mode": true,
+  "effort": { "level": "high" },
+  "thinking": { "enabled": false },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
+    "seven_day": { "used_percentage": 81.2, "resets_at": 1738857600 }
+  },
+  "agent": { "name": "reviewer" },
+  "pr": { "number": 42, "url": "https://github.com/example/example-app/pull/42", "review_state": "changes_requested" },
+  "worktree": { "name": "my-feature", "path": "/home/user/.claude/worktrees/my-feature", "branch": "worktree-my-feature" }
+}
